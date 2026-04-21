@@ -211,23 +211,45 @@ let recorder = null
 let stream   = null
 
 async function startCast() {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-    let msg = 'Screen sharing is not supported by this browser.'
-    if (!window.isSecureContext) msg += ' Screen sharing requires a secure context (HTTPS).'
+  // Debug info
+  console.log('Secure context:', window.isSecureContext)
+  console.log('MediaDevices:', !!navigator.mediaDevices)
+  console.log('getDisplayMedia:', !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia))
+
+  // Some older/prefixed versions might exist, though rare now
+  const getDisplayMedia = navigator.mediaDevices?.getDisplayMedia?.bind(navigator.mediaDevices) ||
+                          navigator.getDisplayMedia?.bind(navigator) ||
+                          navigator.webkitGetDisplayMedia?.bind(navigator) ||
+                          navigator.mozGetDisplayMedia?.bind(navigator)
+
+  if (!getDisplayMedia) {
+    let msg = 'Screen sharing is not supported by this browser or environment.\n\n'
+
+    if (!window.isSecureContext) {
+      msg += '• Error: Insecure context. Screen sharing REQUIRES an HTTPS connection (or localhost).\n'
+    }
+
+    if (!navigator.mediaDevices) {
+      msg += '• Error: navigator.mediaDevices is undefined. This often happens in insecure contexts or very old browsers.\n'
+    } else if (!navigator.mediaDevices.getDisplayMedia) {
+      msg += '• Error: getDisplayMedia is missing. Note that most mobile browsers do not support screen sharing.\n'
+    }
+
     alert(msg)
     return
   }
 
   try {
     try {
-      stream = await navigator.mediaDevices.getDisplayMedia({
+      stream = await getDisplayMedia({
         video: { frameRate: { ideal: 30 }, cursor: 'always' },
         audio: true
       })
     } catch (e) {
       // Fallback: try without audio if first attempt fails
       if (e.name === 'NotAllowedError') throw e
-      stream = await navigator.mediaDevices.getDisplayMedia({
+      console.warn('Retrying without audio due to error:', e)
+      stream = await getDisplayMedia({
         video: { frameRate: { ideal: 30 }, cursor: 'always' }
       })
     }

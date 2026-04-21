@@ -211,11 +211,26 @@ let recorder = null
 let stream   = null
 
 async function startCast() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+    let msg = 'Screen sharing is not supported by this browser.'
+    if (!window.isSecureContext) msg += ' Screen sharing requires a secure context (HTTPS).'
+    alert(msg)
+    return
+  }
+
   try {
-    stream = await navigator.mediaDevices.getDisplayMedia({
-      video: { frameRate: { ideal: 30 }, cursor: 'always' },
-      audio: true
-    })
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: { ideal: 30 }, cursor: 'always' },
+        audio: true
+      })
+    } catch (e) {
+      // Fallback: try without audio if first attempt fails
+      if (e.name === 'NotAllowedError') throw e
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: { ideal: 30 }, cursor: 'always' }
+      })
+    }
 
     // Show live preview
     const preview = document.getElementById('preview')
@@ -244,7 +259,8 @@ async function startCast() {
     recorder.start(100)
 
     // Stop when user clicks "Stop sharing" in browser chrome
-    stream.getVideoTracks()[0].addEventListener('ended', stopCast)
+    const videoTrack = stream.getVideoTracks()[0]
+    if (videoTrack) videoTrack.addEventListener('ended', stopCast)
 
     // UI
     setCastStatus('live', 'Live')
